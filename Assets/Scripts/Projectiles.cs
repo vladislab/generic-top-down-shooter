@@ -7,10 +7,13 @@ public class Projectiles : MonoBehaviour
     public LayerMask collisionMask;
     float speed = 10f;
     float damage = 1f;
+    float lifeTime = 3f;
+    float skinWitdh  = .1f;
 
     // Start is called before the first frame update
     void Start()
     {
+        Destroy(gameObject,lifeTime);
         
     }
 
@@ -38,5 +41,16 @@ public class Projectiles : MonoBehaviour
             damagableObject.TakeHit(damage,hit);
         }
         GameObject.Destroy(gameObject);
+    }
+    private void OnHitObject(Collider c){
+        IDamagable damagableObject = c.GetComponent<IDamagable>();
+        if(damagableObject!=null){
+            damagableObject.TakeDamage(damage);
+        }
+        GameObject.Destroy(gameObject);
+    }
+
+    private void OnTriggerEnter(Collider other) {
+        OnHitObject(other);
     }
 }

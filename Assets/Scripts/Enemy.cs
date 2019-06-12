@@ -17,12 +17,15 @@ public class Enemy : LivingEntity
     Spawner spawner;
     Material skinMaterial;
     Color originalColor;
+    LivingEntity targetEntity;
     float attackDistanceThreshold =.5f;
     float timeBetweenAttacks = 1f;
     float nextAttackTime;
     float myCollisionRadius;
     float targetCollisonRadius;
+    float damage = 1f;
     bool hasTarget;
+    bool hasAppliedDamage;
 
     // Start is called before the first frame update
     protected override void Start()
@@ -30,10 +33,12 @@ public class Enemy : LivingEntity
         base.Start();
         pathFinder = GetComponent<NavMeshAgent>();
         
-        if(GameObject.FindGameObjectWithTag("Player") != null){
+        if(CheckTarget()){
             currentState = State.Chasing;
             hasTarget = true;
+
             target = GameObject.FindGameObjectWithTag("Player").transform;
+            targetEntity = target.GetComponent<LivingEntity>();
             spawner=FindObjectOfType<Spawner>();
 
             skinMaterial = GetComponent<Renderer>().material;
@@ -50,7 +55,7 @@ public class Enemy : LivingEntity
     // Update is called once per frame
     void Update()
     {
-        if(hasTarget){
+        if(CheckTarget()){
             if(Time.time>nextAttackTime){
                 float sqrDistanceToTarget = (target.position - transform.position).sqrMagnitude;
                 if(sqrDistanceToTarget < Mathf.Pow(attackDistanceThreshold+myCollisionRadius+targetCollisonRadius,2)){
@@ -68,6 +73,9 @@ public class Enemy : LivingEntity
         pathFinder.enabled=false;
 
         Vector3 originalPos = transform.position;
+        if(hasTarget){
+            
+        }
         Vector3 directionToTarget = (target.position - transform.position).normalized;
         Vector3 attackPos = target.position - directionToTarget*(myCollisionRadius);
 
@@ -76,8 +84,13 @@ public class Enemy : LivingEntity
         float attackSpeed=3;
 
         skinMaterial.color=Color.red;
+        hasAppliedDamage = false;
 
         while(percent <=1){
+            if(percent >=.5f && !hasAppliedDamage){
+                hasAppliedDamage = true;
+                targetEntity.TakeDamage(damage);
+            }
             percent += Time.deltaTime *attackSpeed;
             float interpolation = (-Mathf.Pow(percent,2)+percent)*4;
             transform.position = Vector3.Lerp(originalPos,attackPos,interpolation);
@@ -91,7 +104,7 @@ public class Enemy : LivingEntity
 
     IEnumerator UpdatePath(){
         float refreshRate = 0.25f;
-        while(hasTarget){
+        while(CheckTarget()){
             if(currentState==State.Chasing){
                 Vector3 directionToTarget = (target.position - transform.position).normalized;
                 Vector3 targetPosition = target.position - directionToTarget*(myCollisionRadius+targetCollisonRadius+attackDistanceThreshold/2);
@@ -110,5 +123,8 @@ public class Enemy : LivingEntity
         currentState = State.Idle;
         base.Die();
         
+    }
+    private bool CheckTarget(){
+        return GameObject.FindGameObjectWithTag("Player");
     }
 }

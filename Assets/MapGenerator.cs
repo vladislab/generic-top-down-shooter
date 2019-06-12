@@ -8,10 +8,15 @@ public class MapGenerator : MonoBehaviour
     public Transform obstaclePrefab;
     public Vector2 mapSize;
     public int randomSeed = 10;
+    [Range(0,1)]
+    public float outlinePercent;
+    [Range(0,1)]
+    public float obstaclePercent;
+    Coord mapCentre;
 
     List<Coord> allTileCoords;
     Queue<Coord> shuffledTileCoords;
-    [Range(0,1)]public float outlinePercent;
+    
 
     // Start is called before the first frame update
     void Start()
@@ -26,9 +31,9 @@ public class MapGenerator : MonoBehaviour
     }
 
     public void GenerateMap(){
-        string holderName = "Generated Map";
+        /*List of all the Coordinates */
         allTileCoords = new List<Coord>();
-
+        
         /*
             This for loop add the coordinates of the generated tiles into a List<Coord>
          */
@@ -43,7 +48,11 @@ public class MapGenerator : MonoBehaviour
         (class Utilites returns an array of shuffled deck of generic objects) 
         In this case the tile coordinates are shuffled using Fisher-Yates algorithm*/
         shuffledTileCoords = new Queue<Coord>(Utilities.ShuffleArray(allTileCoords.ToArray(),randomSeed));
+        
+        /*mapCentre is where the player spawn at the centre of the map */
+        mapCentre = new Coord((int)mapSize.x/2,(int)mapSize.y/2);
 
+        string holderName = "Generated Map";
         /*Find existing Generated Map object and destroy it immediately */
         if(transform.Find(holderName)){
             DestroyImmediate(transform.Find(holderName).gameObject);
@@ -68,17 +77,78 @@ public class MapGenerator : MonoBehaviour
                 newTile.parent = mapHolder;
             }
         }
+        bool [,] obstacleMap = new bool[(int)mapSize.x,(int)mapSize.y];
+
+        int obstacleCount =(int)(mapSize.x*mapSize.y*obstaclePercent);
+        int currentObstacleCount = 0;
 
         /*This for loop generates obstacles on randomized Coordinates */
-        int obstacleCount =10;
         for(int i=0;i<obstacleCount;i++){
             Coord randomCoord = GetRandomCoord();
-            Vector3 obstaclePos = CoordToPosition(randomCoord.x,randomCoord.y);
-            Transform newObstacle = Instantiate(obstaclePrefab,obstaclePos+Vector3.up*0.5f,Quaternion.identity) as Transform;
-            newObstacle.parent= mapHolder;
+            obstacleMap[randomCoord.x,randomCoord.y]=true;
+            currentObstacleCount ++;
+
+            /*If the Coordinate is not on the Player Spawn AND the map is full accessible,
+            then Instantiate all the obstacles.
+            Set parent of the obstacles to be the Map Holder.
+            If not map the Coordinate of the obstacle to be FALSE - meaning the tile is empty,
+            and reduce the current number of obstacles */
+            if(randomCoord != mapCentre && MapIsFullyAccessible(obstacleMap,currentObstacleCount)){
+                Vector3 obstaclePos = CoordToPosition(randomCoord.x,randomCoord.y);
+
+                Transform newObstacle = Instantiate(obstaclePrefab,obstaclePos+Vector3.up*0.5f,Quaternion.identity) as Transform;
+                newObstacle.parent= mapHolder;
+            }
+            else{
+                obstacleMap[randomCoord.x,randomCoord.y] = false;
+                currentObstacleCount--;
+
+            }
+            
         }   
     }
+    /*This method uses Flood-fill Algorithm to detect if the generated obstacles might block accessible paths
+    First it flags the spawning tile of the player (mapCentre) so nothing can block that tile.
+    ->The algorithm starts from the centre tile.
+    ->Find a suitable candidate, CHECK them.
+    ->In the next iteration, that tile is dequeued then the algorithm find its neighboring tiles.
+    ->And repeats until all the Coordinates are assessed.
+    **A candidate (tile) is CHECKED only when it is not on obstacle tile AND it has not been checked before -
+    meaning it is either already been flagged or is mapped as an obstacle tile.
+    The method returns true if the number of Checked tiles(accessible tiles) equals the non-obstacle tiles*/
+    bool MapIsFullyAccessible(bool[,] obstacleMap, int currentObstacleCount){
+        bool[,] mapFlags = new bool[obstacleMap.GetLength(0),obstacleMap.GetLength(1)];
+        Queue<Coord> queue = new Queue<Coord>();
+        queue.Enqueue(mapCentre);
+        mapFlags[mapCentre.x,mapCentre.y]=true;
 
+        int accessibleTileCount = 1;
+
+        while(queue.Count >0){
+            Coord tile = queue.Dequeue();
+
+            for(int x=-1;x<=1;x++){
+                for (int y = -1; y <= 1; y++)
+                {
+                    int neighbourX = tile.x+x;
+                    int neighbourY = tile.y+y;
+
+                    if(x==0 || y==0){
+                        if(neighbourX>=0 && neighbourX < obstacleMap.GetLength(0) && neighbourY >=0 && neighbourY<obstacleMap.GetLength(1)){
+                            if(!mapFlags[neighbourX,neighbourY] && !obstacleMap[neighbourX,neighbourY]){
+                                mapFlags[neighbourX,neighbourY]=true;
+                                queue.Enqueue(new Coord(neighbourX,neighbourY));
+                                accessibleTileCount++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        int targetAccessibleTileCount = (int)(mapSize.x*mapSize.y - currentObstacleCount);
+        return targetAccessibleTileCount == accessibleTileCount;
+    }
     /*This method returns Vector3 Position of the specified Coordinates
     Each Coordinate
     */
@@ -100,6 +170,15 @@ public class MapGenerator : MonoBehaviour
         public Coord(int _x,int _y){
             x=_x;
             y=_y;
+        }
+
+        
+        public static bool operator ==(Coord c1, Coord c2){
+            return c1.x == c2.x && c1.y == c2.y;
+        }
+
+        public static bool operator !=(Coord c1, Coord c2){
+            return !(c1 == c2);
         }
     }
 }

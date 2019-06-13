@@ -43,4 +43,9 @@ public class Player : LivingEntity
             gunController.Shoot();
         }
     }
+
+    protected override void Die(){
+        FindObjectOfType<Spawner>().OnPlayerDeath();
+        base.Die();
+    }
 }
